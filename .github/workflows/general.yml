@@ -38,7 +38,7 @@ jobs:
           --health-retries=5
     steps:
       - name: Check out repository code
-        uses: actions/checkout@4
+        uses: actions/checkout@v4
 
       - name: Install the Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image:  mysql:8
+        image: mysql:8
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: newsletter
@@ -114,6 +114,7 @@ jobs:
       steps:
         - uses: actions/checkout@v4
         - name: Install the Rust toolchain
+
           uses: actions-rust-lang/setup-rust-toolchain@v1
           with:
             components: llvm-tools-preview
@@ -131,7 +132,7 @@ jobs:
             mysql -h 127.0.0.1 -u root -prootpassword -e "CREATE USER '${APP_USER}'@'%' IDENTIFIED BY '${APP_USER_PWD}';"
             mysql -h 127.0.0.1 -u root -prootpassword -e "GRANT ALL PRIVILEGES ON ${APP_DB_NAME}.* TO '${APP_USER}'@'%';"
             mysql -h 127.0.0.1 -u root -prootpassword -e "FLUSH PRIVILEGES;"
-      
+
         - name: Migrate database
           run: SKIP_DOCKER=true ./scripts/init_db.sh
 
@@ -148,4 +149,3 @@ jobs:
           with:
             name: "Coverage report"
             path: coverage/
-  
