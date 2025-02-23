@@ -1,0 +1,151 @@
+name: Rust
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_VERSION: 0.8.3
+  SQLX_FEATURES: "mysql,rustls"
+  APP_USER: app
+  APP_USER_PWD: secret
+  APP_DB_NAME: newsletter
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: newsletter
+          MYSQL_USER: app
+          MYSQL_PASSWORD: secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@4
+
+      - name: Install the Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install sqlx-cli
+        run: |
+          cargo install sqlx-cli \
+            --version=${{ env.SQLX_VERSION }} \
+            --features ${{ env.SQLX_FEATURES }} \
+            --no-default-features \
+            --locked
+
+      - name: Create app user in MYSQL
+        run: |
+          sudo apt-get install -y mysql-client
+          mysql -h 127.0.0.1 -u root -prootpassword -e "CREATE USER '${APP_USER}'@'%' IDENTIFIED BY '${APP_USER_PWD}';"
+          mysql -h 127.0.0.1 -u root -prootpassword -e "GRANT ALL PRIVILEGES ON ${APP_DB_NAME}.* TO '${APP_USER}'@'%';"
+          mysql -h 127.0.0.1 -u root -prootpassword -e "FLUSH PRIVILEGES;"
+
+      - name: Migrate database
+        run: SKIP_DOCKER=true ./scripts/init_db.sh
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Check that queries are fresh
+        run: cargo sqlx prepare --workspace --check -- --all-targets
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+      - name: Enforce formatting
+        run: cargo fmt --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+      - name: Linting
+        run: cargo clippy -- -D warnings
+
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image:  mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: newsletter
+          MYSQL_USER: app
+          MYSQL_PASSWORD: secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      steps:
+        - uses: actions/checkout@v4
+        - name: Install the Rust toolchain
+          uses: actions-rust-lang/setup-rust-toolchain@v1
+          with:
+            components: llvm-tools-preview
+        - name: Install sqlx-cli
+          run: |
+            cargo install sqlx-cli \
+              --version=${{ env.SQLX_VERSION }} \
+              --features ${{ env.SQLX_FEATURES }} \
+              --no-default-features \
+              --locked
+
+        - name: Create app user in MYSQL
+          run: |
+            sudo apt-get install -y mysql-client
+            mysql -h 127.0.0.1 -u root -prootpassword -e "CREATE USER '${APP_USER}'@'%' IDENTIFIED BY '${APP_USER_PWD}';"
+            mysql -h 127.0.0.1 -u root -prootpassword -e "GRANT ALL PRIVILEGES ON ${APP_DB_NAME}.* TO '${APP_USER}'@'%';"
+            mysql -h 127.0.0.1 -u root -prootpassword -e "FLUSH PRIVILEGES;"
+      
+        - name: Migrate database
+          run: SKIP_DOCKER=true ./scripts/init_db.sh
+
+        - name: Install cargo-llvm-cov
+          uses: taiki-e/install-action@cargo-llvm-cov
+
+        - name: Generate code coverage
+          run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+        - name: Generate report
+          run: cargo llvm-cov report --html --output-dir coverage
+
+        - uses: actions/upload-artifact@v4
+          with:
+            name: "Coverage report"
+            path: coverage/
+  
