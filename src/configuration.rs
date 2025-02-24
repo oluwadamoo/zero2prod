@@ -1,4 +1,4 @@
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::mysql::{MySqlConnectOptions, MySqlSslMode};
 use sqlx::ConnectOptions;
@@ -21,7 +21,7 @@ pub struct DatabaseSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub username: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
     pub host: String,
     pub database_name: String,
     pub require_ssl: bool,
