@@ -111,41 +111,42 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-      steps:
-        - uses: actions/checkout@v4
-        - name: Install the Rust toolchain
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Rust toolchain
 
-          uses: actions-rust-lang/setup-rust-toolchain@v1
-          with:
-            components: llvm-tools-preview
-        - name: Install sqlx-cli
-          run: |
-            cargo install sqlx-cli \
-              --version=${{ env.SQLX_VERSION }} \
-              --features ${{ env.SQLX_FEATURES }} \
-              --no-default-features \
-              --locked
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: llvm-tools-preview
 
-        - name: Create app user in MYSQL
-          run: |
-            sudo apt-get install -y mysql-client
-            mysql -h 127.0.0.1 -u root -prootpassword -e "CREATE USER '${APP_USER}'@'%' IDENTIFIED BY '${APP_USER_PWD}';"
-            mysql -h 127.0.0.1 -u root -prootpassword -e "GRANT ALL PRIVILEGES ON ${APP_DB_NAME}.* TO '${APP_USER}'@'%';"
-            mysql -h 127.0.0.1 -u root -prootpassword -e "FLUSH PRIVILEGES;"
+      - name: Install sqlx-cli
+        run: |
+          cargo install sqlx-cli \
+            --version=${{ env.SQLX_VERSION }} \
+            --features ${{ env.SQLX_FEATURES }} \
+            --no-default-features \
+            --locked
 
-        - name: Migrate database
-          run: SKIP_DOCKER=true ./scripts/init_db.sh
+      - name: Create app user in MYSQL
+        run: |
+          sudo apt-get install -y mysql-client
+          mysql -h 127.0.0.1 -u root -prootpassword -e "CREATE USER '${APP_USER}'@'%' IDENTIFIED BY '${APP_USER_PWD}';"
+          mysql -h 127.0.0.1 -u root -prootpassword -e "GRANT ALL PRIVILEGES ON ${APP_DB_NAME}.* TO '${APP_USER}'@'%';"
+          mysql -h 127.0.0.1 -u root -prootpassword -e "FLUSH PRIVILEGES;"
 
-        - name: Install cargo-llvm-cov
-          uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Migrate database
+        run: SKIP_DOCKER=true ./scripts/init_db.sh
 
-        - name: Generate code coverage
-          run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-        - name: Generate report
-          run: cargo llvm-cov report --html --output-dir coverage
+      - name: Generate code coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
-        - uses: actions/upload-artifact@v4
-          with:
-            name: "Coverage report"
-            path: coverage/
+      - name: Generate report
+        run: cargo llvm-cov report --html --output-dir coverage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "Coverage report"
+          path: coverage/
